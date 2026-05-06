@@ -12,6 +12,7 @@ class HealthResponse:
     service: str
     database_ready: bool
     model_count: int
+    runtime_loaded: bool
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

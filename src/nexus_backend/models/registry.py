@@ -12,8 +12,11 @@ MLX_SUFFIXES = {".safetensors"}
 class ModelArtifact:
     name: str
     path: Path
+    launch_path: Path
     runtime: str
     kind: str
+    supports_thinking: bool
+    recommended_context_length: int
 
 
 @dataclass(frozen=True)
@@ -57,7 +60,7 @@ def _classify_path(path: Path) -> ModelArtifact | None:
     if path.is_file():
         suffix = path.suffix.lower()
         if suffix in GGUF_SUFFIXES:
-            return ModelArtifact(name=path.stem, path=path, runtime="llama.cpp", kind="text")
+            return _build_text_artifact(path.stem, path, path)
         if suffix in MLX_SUFFIXES:
             return _classify_mlx_artifact(path.stem, path)
         return None
@@ -66,7 +69,10 @@ def _classify_path(path: Path) -> ModelArtifact | None:
         lower_name = path.name.lower()
         if "mlx" in lower_name:
             return _classify_mlx_artifact(path.name, path)
-        return ModelArtifact(name=path.name, path=path, runtime="llama.cpp", kind="text")
+        launch_path = _find_launch_path(path, GGUF_SUFFIXES)
+        if launch_path is None:
+            return None
+        return _build_text_artifact(path.name, path, launch_path)
 
     return None
 
@@ -74,7 +80,47 @@ def _classify_path(path: Path) -> ModelArtifact | None:
 def _classify_mlx_artifact(name: str, path: Path) -> ModelArtifact:
     lower_name = name.lower()
     kind = "ocr" if "ocr" in lower_name else "vlm" if "vl" in lower_name else "multimodal"
-    return ModelArtifact(name=name, path=path, runtime="mlx", kind=kind)
+    return ModelArtifact(
+        name=name,
+        path=path,
+        launch_path=path,
+        runtime="mlx",
+        kind=kind,
+        supports_thinking=False,
+        recommended_context_length=0,
+    )
+
+
+def _build_text_artifact(name: str, path: Path, launch_path: Path) -> ModelArtifact:
+    lower_name = name.lower()
+    return ModelArtifact(
+        name=name,
+        path=path,
+        launch_path=launch_path,
+        runtime="llama.cpp",
+        kind="text",
+        supports_thinking=_supports_thinking(lower_name),
+        recommended_context_length=_recommended_context_length(lower_name),
+    )
+
+
+def _find_launch_path(root: Path, suffixes: set[str]) -> Path | None:
+    for candidate in sorted(root.rglob("*")):
+        if candidate.is_file() and candidate.suffix.lower() in suffixes:
+            return candidate
+    return None
+
+
+def _supports_thinking(lower_name: str) -> bool:
+    return "qwen" in lower_name or "gpt-oss" in lower_name or "reason" in lower_name
+
+
+def _recommended_context_length(lower_name: str) -> int:
+    if "2b" in lower_name or "4b" in lower_name:
+        return 8192
+    if "9b" in lower_name:
+        return 16384
+    return 32768
 
 
 def _pick_default(artifacts: tuple[ModelArtifact, ...], preferred_terms: tuple[str, ...]) -> str | None:

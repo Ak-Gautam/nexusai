@@ -13,16 +13,30 @@ from nexus_backend.memory.store import initialize_database
 from nexus_backend.memory.store import log_event
 from nexus_backend.memory.store import log_task_run
 from nexus_backend.models import discover_model_registry
+from nexus_backend.models import LlamaCppRuntimeManager
 from nexus_backend.tasks.router import route_command
 
 
 class NexusApiServer(ThreadingHTTPServer):
-    def __init__(self, server_address: tuple[str, int], model_root: Path, database_path: Path, downloads_root: Path):
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        model_root: Path,
+        database_path: Path,
+        downloads_root: Path,
+        data_root: Path,
+        llama_server_path: Path | None,
+    ):
         super().__init__(server_address, NexusRequestHandler)
         self.model_root = model_root
         self.database_path = database_path
         self.downloads_root = downloads_root
         self.database_status = initialize_database(database_path)
+        self.runtime_manager = LlamaCppRuntimeManager(
+            model_root=model_root,
+            data_root=data_root,
+            llama_server_path=llama_server_path,
+        )
 
 
 class NexusRequestHandler(BaseHTTPRequestHandler):
@@ -36,6 +50,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
                 service="nexus-backend",
                 database_ready=self.server.database_status.ready,
                 model_count=len(registry.artifacts),
+                runtime_loaded=self.server.runtime_manager.status().loaded,
             ).to_dict()
             self._write_json(HTTPStatus.OK, payload)
             return
@@ -45,8 +60,14 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
                 CommandRequest(command="/models"),
                 model_root=self.server.model_root,
                 downloads_root=self.server.downloads_root,
+                runtime_manager=self.server.runtime_manager,
             )
             self._write_json(HTTPStatus.OK, response.to_dict())
+            return
+
+        if self.path == "/runtime":
+            payload = self.server.runtime_manager.status().to_dict()
+            self._write_json(HTTPStatus.OK, payload)
             return
 
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "Not found"})
@@ -64,6 +85,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
             request,
             model_root=self.server.model_root,
             downloads_root=self.server.downloads_root,
+            runtime_manager=self.server.runtime_manager,
         )
         log_task_run(
             self.server.database_path,
