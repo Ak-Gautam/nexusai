@@ -8,4 +8,6 @@ build/
 .swiftpm/
 .build/
 data/*.sqlite3
+data/logs/
+data/runtime_state.json
 *.md
