@@ -7,7 +7,8 @@ final class AppState: ObservableObject {
     @Published var isBusy = false
     @Published var statusText = "Ready"
     @Published var responseBody = ""
-    @Published var supportedCommands = ["/models", "/downloads"]
+    @Published var focusTrigger = UUID()
+    @Published var supportedCommands = ["/models", "/downloads", "/runtime/status"]
 
     let backend = BackendClient()
 
@@ -17,7 +18,10 @@ final class AppState: ObservableObject {
 
         isBusy = true
         isExpanded = true
-        statusText = "Running \(command)"
+        statusText = "Running \(command)…"
+
+        // Tell the AppDelegate to expand the panel.
+        NotificationCenter.default.post(name: .nexusPanelExpand, object: nil)
 
         do {
             let result = try await backend.run(command: command)
@@ -29,5 +33,13 @@ final class AppState: ObservableObject {
         }
 
         isBusy = false
+    }
+
+    func reset() {
+        commandText = ""
+        isExpanded = false
+        responseBody = ""
+        statusText = "Ready"
+        focusTrigger = UUID()   // Triggers onChange → re-focus text field
     }
 }

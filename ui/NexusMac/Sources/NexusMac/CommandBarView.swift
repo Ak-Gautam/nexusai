@@ -6,14 +6,16 @@ struct CommandBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+
+            // ── Command input bar ──
             HStack(spacing: 12) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 18, weight: .semibold))
 
-                TextField("Ask Nexus or type /downloads", text: $state.commandText)
+                TextField("Ask Nexus or type a /command…", text: $state.commandText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 22, weight: .regular, design: .rounded))
+                    .font(.system(size: 20, weight: .regular, design: .rounded))
                     .focused($isInputFocused)
                     .onSubmit {
                         Task { await state.submitCommand() }
@@ -23,50 +25,74 @@ struct CommandBarView: View {
                     ProgressView()
                         .controlSize(.small)
                 } else if !state.commandText.isEmpty {
-                    Button("Run") {
+                    Button {
                         Task { await state.submitCommand() }
+                    } label: {
+                        Image(systemName: "return")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.vertical, 16)
-            .frame(minWidth: 720)
-            .background(.ultraThinMaterial)
+            .padding(.vertical, 14)
 
+            // ── Expanded results area ──
             if state.isExpanded {
                 Divider()
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(state.statusText)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(state.statusText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        if state.isBusy {
+                            ProgressView()
+                                .controlSize(.mini)
+                        }
+                    }
 
                     ScrollView {
-                        Text(state.responseBody.isEmpty ? "No output yet." : state.responseBody)
-                            .font(.system(size: 12, design: .monospaced))
+                        Text(state.responseBody.isEmpty ? "Waiting…" : state.responseBody)
+                            .font(.system(size: 11.5, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxHeight: 360)
+                    .frame(maxHeight: 320)
 
-                    HStack(spacing: 10) {
-                        ForEach(state.supportedCommands, id: \.self) { command in
-                            Button(command) {
-                                state.commandText = command
-                                Task { await state.submitCommand() }
+                    Divider()
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(state.supportedCommands, id: \.self) { cmd in
+                                Button(cmd) {
+                                    state.commandText = cmd
+                                    Task { await state.submitCommand() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.bordered)
                         }
                     }
                 }
-                .padding(18)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 20, y: 6)
         .onAppear {
+            isInputFocused = true
+        }
+        .onChange(of: state.focusTrigger) { _, _ in
             isInputFocused = true
         }
     }
