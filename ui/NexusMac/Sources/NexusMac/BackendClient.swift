@@ -9,12 +9,23 @@ struct BackendClient: Sendable {
     }
 
     func run(command: String, arguments: [String: BackendArgument] = [:]) async throws -> String {
+        let data = try await runData(command: command, arguments: arguments)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func fetchModelCatalog() async throws -> ModelCatalog {
+        let data = try await runData(command: "/models")
+        let response = try JSONDecoder().decode(CommandResponseEnvelope<ModelCatalog>.self, from: data)
+        return response.payload
+    }
+
+    private func runData(command: String, arguments: [String: BackendArgument] = [:]) async throws -> Data {
         var request = URLRequest(url: baseURL.appending(path: "commands"))
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(CommandEnvelope(command: command, arguments: arguments))
         let (data, _) = try await URLSession.shared.data(for: request)
-        return String(decoding: data, as: UTF8.self)
+        return data
     }
 }
 
@@ -42,4 +53,10 @@ enum BackendArgument: Encodable, Sendable, Equatable {
 private struct CommandEnvelope: Encodable {
     let command: String
     let arguments: [String: BackendArgument]
+}
+
+private struct CommandResponseEnvelope<Payload: Decodable>: Decodable {
+    let ok: Bool
+    let command: String
+    let payload: Payload
 }
