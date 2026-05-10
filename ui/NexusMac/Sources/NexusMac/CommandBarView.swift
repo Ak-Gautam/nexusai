@@ -65,6 +65,24 @@ struct CommandBarView: View {
 
                     Divider()
 
+                    if !state.loadableModels.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(state.loadableModels) { artifact in
+                                    Button {
+                                        Task { await state.loadModel(artifact) }
+                                    } label: {
+                                        Label(artifact.name, systemImage: "bolt.fill")
+                                            .lineLimit(1)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .disabled(state.isBusy)
+                                }
+                            }
+                        }
+                    }
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(state.supportedCommands, id: \.self) { cmd in
@@ -91,6 +109,9 @@ struct CommandBarView: View {
         .shadow(color: .black.opacity(0.18), radius: 20, y: 6)
         .onAppear {
             isInputFocused = true
+        }
+        .task {
+            await state.refreshModelCatalogIfNeeded()
         }
         .onChange(of: state.focusTrigger) { _, _ in
             isInputFocused = true
