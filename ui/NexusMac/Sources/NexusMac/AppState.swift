@@ -13,20 +13,31 @@ final class AppState: ObservableObject {
     let backend = BackendClient()
 
     func submitCommand() async {
-        let command = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !command.isEmpty else { return }
+        let input = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return }
+
+        let request: BackendCommandRequest
+        do {
+            request = try CommandInputParser.parse(input)
+        } catch {
+            isExpanded = true
+            responseBody = error.localizedDescription
+            statusText = "Invalid command"
+            NotificationCenter.default.post(name: .nexusPanelExpand, object: nil)
+            return
+        }
 
         isBusy = true
         isExpanded = true
-        statusText = "Running \(command)…"
+        statusText = "Running \(request.command)…"
 
         // Tell the AppDelegate to expand the panel.
         NotificationCenter.default.post(name: .nexusPanelExpand, object: nil)
 
         do {
-            let result = try await backend.run(command: command)
+            let result = try await backend.run(command: request.command, arguments: request.arguments)
             responseBody = result
-            statusText = "Completed \(command)"
+            statusText = "Completed \(request.command)"
         } catch {
             responseBody = "Backend error: \(error.localizedDescription)"
             statusText = "Request failed"
