@@ -19,6 +19,12 @@ struct BackendClient: Sendable {
         return response.payload
     }
 
+    func fetchRuntimeStatus() async throws -> RuntimeStatus {
+        let data = try await runData(command: "/runtime/status")
+        let response = try JSONDecoder().decode(CommandResponseEnvelope<RuntimeStatus>.self, from: data)
+        return response.payload
+    }
+
     private func runData(command: String, arguments: [String: BackendArgument] = [:]) async throws -> Data {
         var request = URLRequest(url: baseURL.appending(path: "commands"))
         request.httpMethod = "POST"
