@@ -85,10 +85,16 @@ final class AppState: ObservableObject {
         statusText = "Running \(request.command)…"
 
         do {
-            let result = try await backend.run(command: request.command, arguments: request.arguments)
-            responseBody = result
+            if request.command == "/chat" {
+                let result = try await backend.chat(arguments: request.arguments)
+                responseBody = result.assistantMessage.isEmpty ? "No assistant message returned." : result.assistantMessage
+                runtimeStatus = result.runtime
+            } else {
+                let result = try await backend.run(command: request.command, arguments: request.arguments)
+                responseBody = result
+                await refreshRuntimeStatusIfNeeded(after: request.command)
+            }
             statusText = "Completed \(request.command)"
-            await refreshRuntimeStatusIfNeeded(after: request.command)
         } catch {
             responseBody = "Backend error: \(error.localizedDescription)"
             statusText = "Request failed"
