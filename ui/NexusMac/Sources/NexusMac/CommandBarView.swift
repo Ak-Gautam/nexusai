@@ -55,6 +55,11 @@ struct CommandBarView: View {
                         }
                     }
 
+                    Label(state.runtimeSummary, systemImage: state.runtimeStatus?.loaded == true ? "cpu.fill" : "cpu")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(state.runtimeStatus?.loaded == true ? .primary : .secondary)
+                        .lineLimit(1)
+
                     ScrollView {
                         Text(state.responseBody.isEmpty ? "Waiting…" : state.responseBody)
                             .font(.system(size: 11.5, design: .monospaced))
@@ -112,6 +117,7 @@ struct CommandBarView: View {
         }
         .task {
             await state.refreshModelCatalogIfNeeded()
+            await state.refreshRuntimeStatusIfNeeded()
         }
         .onChange(of: state.focusTrigger) { _, _ in
             isInputFocused = true
