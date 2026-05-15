@@ -23,6 +23,14 @@ final class AppState: ObservableObject {
         } ?? []
     }
 
+    var defaultChatModelName: String? {
+        if let router = modelCatalog?.defaults.router,
+           loadableModels.contains(where: { $0.name == router }) {
+            return router
+        }
+        return loadableModels.first?.name
+    }
+
     var runtimeSummary: String {
         guard let runtimeStatus else {
             return "Runtime status unknown"
@@ -86,7 +94,7 @@ final class AppState: ObservableObject {
 
         do {
             if request.command == "/chat" {
-                let result = try await backend.chat(arguments: request.arguments)
+                let result = try await backend.chat(arguments: await chatArguments(from: request.arguments))
                 responseBody = result.assistantMessage.isEmpty ? "No assistant message returned." : result.assistantMessage
                 runtimeStatus = result.runtime
             } else {
@@ -146,5 +154,23 @@ final class AppState: ObservableObject {
         if ["/runtime/load", "/runtime/unload", "/runtime/status", "/chat"].contains(command) {
             await refreshRuntimeStatus()
         }
+    }
+
+    private func chatArguments(from arguments: [String: BackendArgument]) async -> [String: BackendArgument] {
+        var resolvedArguments = arguments
+        guard resolvedArguments["model_name"] == nil else {
+            return resolvedArguments
+        }
+
+        await refreshRuntimeStatusIfNeeded()
+        if runtimeStatus?.loaded == true {
+            return resolvedArguments
+        }
+
+        await refreshModelCatalogIfNeeded()
+        if let defaultChatModelName {
+            resolvedArguments["model_name"] = .string(defaultChatModelName)
+        }
+        return resolvedArguments
     }
 }
