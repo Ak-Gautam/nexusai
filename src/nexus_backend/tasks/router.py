@@ -56,21 +56,28 @@ def route_command(
         model_name = str(command_request.arguments.get("model_name", "")).strip()
         if not model_name:
             return CommandResponse(ok=False, command=command, payload={"error": "model_name is required."})
-        context_length = command_request.arguments.get("context_length")
-        temperature = float(command_request.arguments.get("temperature", 0.2))
-        thinking_enabled = _parse_bool(command_request.arguments.get("thinking_enabled", True))
-        state = runtime_manager.load(
-            model_name=model_name,
-            context_length=int(context_length) if context_length is not None else None,
-            temperature=temperature,
-            thinking_enabled=thinking_enabled,
-        )
+        try:
+            context_length = command_request.arguments.get("context_length")
+            temperature = float(command_request.arguments.get("temperature", 0.2))
+            thinking_enabled = _parse_bool(command_request.arguments.get("thinking_enabled", True))
+            state = runtime_manager.load(
+                model_name=model_name,
+                context_length=int(context_length) if context_length is not None else None,
+                temperature=temperature,
+                thinking_enabled=thinking_enabled,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            return _command_error(command, exc)
         return CommandResponse(ok=True, command=command, payload=state.to_dict())
 
     if command == "/runtime/unload":
         if runtime_manager is None:
             return CommandResponse(ok=False, command=command, payload={"error": "Runtime manager is not configured."})
-        return CommandResponse(ok=True, command=command, payload=runtime_manager.unload().to_dict())
+        try:
+            state = runtime_manager.unload()
+        except (OSError, RuntimeError, ValueError) as exc:
+            return _command_error(command, exc)
+        return CommandResponse(ok=True, command=command, payload=state.to_dict())
 
     if command == "/chat":
         if runtime_manager is None:
@@ -78,13 +85,16 @@ def route_command(
         prompt = str(command_request.arguments.get("prompt", "")).strip()
         if not prompt:
             return CommandResponse(ok=False, command=command, payload={"error": "prompt is required."})
-        result = runtime_manager.chat(
-            model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=float(command_request.arguments.get("temperature", 0.2)),
-            thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
-            max_tokens=int(command_request.arguments.get("max_tokens", 512)),
-        )
+        try:
+            result = runtime_manager.chat(
+                model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=float(command_request.arguments.get("temperature", 0.2)),
+                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
+                max_tokens=int(command_request.arguments.get("max_tokens", 512)),
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            return _command_error(command, exc)
         return CommandResponse(ok=True, command=command, payload=result)
 
     return CommandResponse(
@@ -103,3 +113,8 @@ def _parse_bool(value: object) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _command_error(command: str, error: Exception) -> CommandResponse:
+    message = str(error).strip() or error.__class__.__name__
+    return CommandResponse(ok=False, command=command, payload={"error": message})
