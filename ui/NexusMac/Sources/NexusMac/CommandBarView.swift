@@ -61,10 +61,29 @@ struct CommandBarView: View {
                         .lineLimit(1)
 
                     ScrollView {
-                        Text(state.responseBody.isEmpty ? "Waiting…" : state.responseBody)
-                            .font(.system(size: 11.5, design: .monospaced))
-                            .textSelection(.enabled)
+                        if state.isShowingChatTranscript && !state.chatTranscript.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(state.chatTranscript) { message in
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Text(message.role == .user ? "You" : "Nexus")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 42, alignment: .leading)
+
+                                        Text(message.content)
+                                            .font(.system(size: 12.5))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(state.responseBody.isEmpty ? "Waiting…" : state.responseBody)
+                                .font(.system(size: 11.5, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                     .frame(maxHeight: 320)
 
