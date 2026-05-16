@@ -11,6 +11,8 @@ final class AppState: ObservableObject {
     @Published var modelCatalog: ModelCatalog?
     @Published var isLoadingModelCatalog = false
     @Published var runtimeStatus: RuntimeStatus?
+    @Published var chatTranscript: [ChatTranscriptMessage] = []
+    @Published var isShowingChatTranscript = false
     @Published var supportedCommands = ["/models", "/downloads", "/runtime/status"]
 
     let backend = BackendClient()
@@ -94,10 +96,11 @@ final class AppState: ObservableObject {
 
         do {
             if request.command == "/chat" {
-                let result = try await backend.chat(arguments: await chatArguments(from: request.arguments))
-                responseBody = result.assistantMessage.isEmpty ? "No assistant message returned." : result.assistantMessage
+                let result = try await submitChat(arguments: request.arguments)
+                responseBody = result.assistantMessage
                 runtimeStatus = result.runtime
             } else {
+                isShowingChatTranscript = false
                 let result = try await backend.run(command: request.command, arguments: request.arguments)
                 responseBody = result
                 await refreshRuntimeStatusIfNeeded(after: request.command)
@@ -141,6 +144,8 @@ final class AppState: ObservableObject {
         commandText = ""
         isExpanded = false
         responseBody = ""
+        chatTranscript = []
+        isShowingChatTranscript = false
         statusText = "Ready"
         focusTrigger = UUID()   // Triggers onChange → re-focus text field
     }
@@ -172,5 +177,43 @@ final class AppState: ObservableObject {
             resolvedArguments["model_name"] = .string(defaultChatModelName)
         }
         return resolvedArguments
+    }
+
+    private func submitChat(arguments: [String: BackendArgument]) async throws -> ChatResult {
+        guard case .string(let prompt)? = arguments["prompt"] else {
+            let result = try await backend.chat(arguments: await chatArguments(from: arguments))
+            appendAssistantMessage(result.assistantMessage)
+            return result
+        }
+
+        let userMessage = ChatTranscriptMessage(role: .user, content: prompt)
+        chatTranscript.append(userMessage)
+        isShowingChatTranscript = true
+
+        var chatArguments = arguments
+        chatArguments["prompt"] = nil
+        chatArguments["messages"] = .array(chatTranscript.map { message in
+            .object([
+                "role": .string(message.role.rawValue),
+                "content": .string(message.content),
+            ])
+        })
+
+        do {
+            let result = try await backend.chat(arguments: await self.chatArguments(from: chatArguments))
+            appendAssistantMessage(result.assistantMessage)
+            return result
+        } catch {
+            chatTranscript.removeAll { $0.id == userMessage.id }
+            if chatTranscript.isEmpty {
+                isShowingChatTranscript = false
+            }
+            throw error
+        }
+    }
+
+    private func appendAssistantMessage(_ content: String) {
+        let messageContent = content.isEmpty ? "No assistant message returned." : content
+        chatTranscript.append(ChatTranscriptMessage(role: .assistant, content: messageContent))
     }
 }
