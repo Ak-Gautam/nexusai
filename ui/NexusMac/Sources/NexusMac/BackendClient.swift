@@ -59,11 +59,14 @@ enum BackendError: LocalizedError, Equatable {
     }
 }
 
-enum BackendArgument: Encodable, Sendable, Equatable {
+indirect enum BackendArgument: Encodable, Sendable, Equatable {
     case string(String)
     case int(Int)
     case double(Double)
     case bool(Bool)
+    case array([BackendArgument])
+    case object([String: BackendArgument])
+    case null
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
@@ -76,6 +79,12 @@ enum BackendArgument: Encodable, Sendable, Equatable {
             try container.encode(value)
         case .bool(let value):
             try container.encode(value)
+        case .array(let value):
+            try container.encode(value)
+        case .object(let value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
         }
     }
 }
