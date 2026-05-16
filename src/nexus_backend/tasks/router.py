@@ -82,13 +82,16 @@ def route_command(
     if command == "/chat":
         if runtime_manager is None:
             return CommandResponse(ok=False, command=command, payload={"error": "Runtime manager is not configured."})
-        prompt = str(command_request.arguments.get("prompt", "")).strip()
-        if not prompt:
-            return CommandResponse(ok=False, command=command, payload={"error": "prompt is required."})
         try:
+            messages = _parse_chat_messages(command_request.arguments.get("messages"))
+            if messages is None:
+                prompt = str(command_request.arguments.get("prompt", "")).strip()
+                if not prompt:
+                    return CommandResponse(ok=False, command=command, payload={"error": "prompt is required."})
+                messages = [{"role": "user", "content": prompt}]
             result = runtime_manager.chat(
                 model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 temperature=float(command_request.arguments.get("temperature", 0.2)),
                 thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
                 max_tokens=int(command_request.arguments.get("max_tokens", 512)),
@@ -113,6 +116,38 @@ def _parse_bool(value: object) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _parse_chat_messages(value: object) -> list[dict[str, str]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("messages must be a list of chat messages.")
+
+    messages: list[dict[str, str]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValueError(f"messages[{index}] must be an object.")
+
+        role_value = item.get("role")
+        content_value = item.get("content")
+        if not isinstance(role_value, str):
+            raise ValueError(f"messages[{index}].role must be a string.")
+        if not isinstance(content_value, str):
+            raise ValueError(f"messages[{index}].content must be a string.")
+
+        role = role_value.strip()
+        content = content_value.strip()
+        if role not in {"system", "user", "assistant"}:
+            raise ValueError(f"messages[{index}].role must be system, user, or assistant.")
+        if not content:
+            raise ValueError(f"messages[{index}].content is required.")
+
+        messages.append({"role": role, "content": content})
+
+    if not messages:
+        raise ValueError("messages must include at least one message.")
+    return messages
 
 
 def _command_error(command: str, error: Exception) -> CommandResponse:
