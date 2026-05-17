@@ -13,9 +13,10 @@ final class AppState: ObservableObject {
     @Published var runtimeStatus: RuntimeStatus?
     @Published var chatTranscript: [ChatTranscriptMessage] = []
     @Published var isShowingChatTranscript = false
-    @Published var supportedCommands = ["/models", "/downloads", "/runtime/status"]
+    @Published var supportedCommands = ["/models", "/downloads", "/runtime/status", "/chat/new"]
 
     let backend = BackendClient()
+    private let maxChatContextMessages = 16
     private var hasRequestedModelCatalog = false
     private var hasRequestedRuntimeStatus = false
 
@@ -79,6 +80,11 @@ final class AppState: ObservableObject {
     func submitCommand() async {
         let input = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return }
+
+        if input == "/chat/new" {
+            startNewChat()
+            return
+        }
 
         let request: BackendCommandRequest
         do {
@@ -150,6 +156,16 @@ final class AppState: ObservableObject {
         focusTrigger = UUID()   // Triggers onChange → re-focus text field
     }
 
+    func startNewChat() {
+        chatTranscript = []
+        isShowingChatTranscript = false
+        responseBody = ""
+        statusText = "New chat"
+        commandText = ""
+        expandPanel()
+        focusTrigger = UUID()
+    }
+
     private func expandPanel() {
         isExpanded = true
         NotificationCenter.default.post(name: .nexusPanelExpand, object: nil)
@@ -192,7 +208,7 @@ final class AppState: ObservableObject {
 
         var chatArguments = arguments
         chatArguments["prompt"] = nil
-        chatArguments["messages"] = .array(chatTranscript.map { message in
+        chatArguments["messages"] = .array(chatContextMessages().map { message in
             .object([
                 "role": .string(message.role.rawValue),
                 "content": .string(message.content),
@@ -215,5 +231,9 @@ final class AppState: ObservableObject {
     private func appendAssistantMessage(_ content: String) {
         let messageContent = content.isEmpty ? "No assistant message returned." : content
         chatTranscript.append(ChatTranscriptMessage(role: .assistant, content: messageContent))
+    }
+
+    private func chatContextMessages() -> [ChatTranscriptMessage] {
+        Array(chatTranscript.suffix(maxChatContextMessages))
     }
 }

@@ -49,6 +49,26 @@ struct CommandBarView: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.tertiary)
                         Spacer()
+                        Button {
+                            state.startNewChat()
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .disabled(state.isBusy || state.chatTranscript.isEmpty)
+                        .help("New chat")
+
+                        Button {
+                            Task { await state.refreshRuntimeStatus() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .disabled(state.isBusy)
+                        .help("Refresh runtime status")
+
                         if state.isBusy {
                             ProgressView()
                                 .controlSize(.mini)
