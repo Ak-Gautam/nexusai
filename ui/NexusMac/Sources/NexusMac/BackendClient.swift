@@ -25,6 +25,27 @@ struct BackendClient: Sendable {
         return response.payload
     }
 
+    func loadRuntime(modelName: String, contextLength: Int?, temperature: Double = 0.2, thinkingEnabled: Bool) async throws -> RuntimeStatus {
+        var arguments: [String: BackendArgument] = [
+            "model_name": .string(modelName),
+            "temperature": .double(temperature),
+            "thinking_enabled": .bool(thinkingEnabled),
+        ]
+        if let contextLength {
+            arguments["context_length"] = .int(contextLength)
+        }
+
+        let data = try await runData(command: "/runtime/load", arguments: arguments)
+        let response = try JSONDecoder().decode(CommandResponseEnvelope<RuntimeStatus>.self, from: data)
+        return response.payload
+    }
+
+    func unloadRuntime() async throws -> RuntimeStatus {
+        let data = try await runData(command: "/runtime/unload")
+        let response = try JSONDecoder().decode(CommandResponseEnvelope<RuntimeStatus>.self, from: data)
+        return response.payload
+    }
+
     func chat(arguments: [String: BackendArgument]) async throws -> ChatResult {
         let data = try await runData(command: "/chat", arguments: arguments)
         let response = try JSONDecoder().decode(CommandResponseEnvelope<ChatResult>.self, from: data)
