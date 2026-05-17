@@ -13,7 +13,7 @@ final class AppState: ObservableObject {
     @Published var runtimeStatus: RuntimeStatus?
     @Published var chatTranscript: [ChatTranscriptMessage] = []
     @Published var isShowingChatTranscript = false
-    @Published var supportedCommands = ["/models", "/downloads", "/runtime/status", "/chat/new"]
+    @Published var supportedCommands = ["/models", "/downloads", "/runtime/status", "/runtime/unload", "/chat/new"]
 
     let backend = BackendClient()
     private let maxChatContextMessages = 16
@@ -125,22 +125,36 @@ final class AppState: ObservableObject {
         expandPanel()
         statusText = "Loading \(artifact.name)…"
 
-        var arguments: [String: BackendArgument] = [
-            "model_name": .string(artifact.name),
-            "thinking_enabled": .bool(artifact.supportsThinking),
-        ]
-        if artifact.recommendedContextLength > 0 {
-            arguments["context_length"] = .int(artifact.recommendedContextLength)
-        }
-
         do {
-            let result = try await backend.run(command: "/runtime/load", arguments: arguments)
-            responseBody = result
-            await refreshRuntimeStatus()
+            let status = try await backend.loadRuntime(
+                modelName: artifact.name,
+                contextLength: artifact.recommendedContextLength > 0 ? artifact.recommendedContextLength : nil,
+                thinkingEnabled: artifact.supportsThinking
+            )
+            runtimeStatus = status
+            responseBody = runtimeDetails(status)
             statusText = "Loaded \(artifact.name)"
         } catch {
             responseBody = "Backend error: \(error.localizedDescription)"
             statusText = "Load failed"
+        }
+
+        isBusy = false
+    }
+
+    func unloadRuntime() async {
+        isBusy = true
+        expandPanel()
+        statusText = "Unloading runtime…"
+
+        do {
+            let status = try await backend.unloadRuntime()
+            runtimeStatus = status
+            responseBody = runtimeDetails(status)
+            statusText = "Runtime unloaded"
+        } catch {
+            responseBody = "Backend error: \(error.localizedDescription)"
+            statusText = "Unload failed"
         }
 
         isBusy = false
@@ -235,5 +249,29 @@ final class AppState: ObservableObject {
 
     private func chatContextMessages() -> [ChatTranscriptMessage] {
         Array(chatTranscript.suffix(maxChatContextMessages))
+    }
+
+    private func runtimeDetails(_ status: RuntimeStatus) -> String {
+        guard status.loaded else {
+            return "No model loaded."
+        }
+
+        var lines = ["Loaded model: \(status.modelName ?? "Unknown")"]
+        if let contextLength = status.contextLength {
+            lines.append("Context length: \(contextLength)")
+        }
+        if let temperature = status.temperature {
+            lines.append("Temperature: \(temperature)")
+        }
+        if let thinkingEnabled = status.thinkingEnabled {
+            lines.append("Thinking: \(thinkingEnabled ? "enabled" : "disabled")")
+        }
+        if let serverURL = status.serverURL {
+            lines.append("Server: \(serverURL)")
+        }
+        if let processID = status.processID {
+            lines.append("Process ID: \(processID)")
+        }
+        return lines.joined(separator: "\n")
     }
 }

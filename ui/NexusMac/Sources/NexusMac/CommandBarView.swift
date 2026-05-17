@@ -69,6 +69,16 @@ struct CommandBarView: View {
                         .disabled(state.isBusy)
                         .help("Refresh runtime status")
 
+                        Button {
+                            Task { await state.unloadRuntime() }
+                        } label: {
+                            Image(systemName: "stop.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .disabled(state.isBusy || state.runtimeStatus?.loaded != true)
+                        .help("Unload model")
+
                         if state.isBusy {
                             ProgressView()
                                 .controlSize(.mini)
