@@ -59,6 +59,9 @@ struct BackendClient: Sendable {
         request.httpBody = try JSONEncoder().encode(CommandEnvelope(command: command, arguments: arguments))
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
+            if let commandError = try? JSONDecoder().decode(CommandErrorResponseEnvelope.self, from: data) {
+                throw BackendError.command(statusCode: httpResponse.statusCode, command: commandError.command, message: commandError.payload.error)
+            }
             throw BackendError.http(statusCode: httpResponse.statusCode, body: String(decoding: data, as: UTF8.self))
         }
         return data
@@ -66,10 +69,13 @@ struct BackendClient: Sendable {
 }
 
 enum BackendError: LocalizedError, Equatable {
+    case command(statusCode: Int, command: String, message: String)
     case http(statusCode: Int, body: String)
 
     var errorDescription: String? {
         switch self {
+        case .command(_, _, let message):
+            return message
         case .http(let statusCode, let body):
             let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedBody.isEmpty {
@@ -119,4 +125,14 @@ private struct CommandResponseEnvelope<Payload: Decodable>: Decodable {
     let ok: Bool
     let command: String
     let payload: Payload
+}
+
+private struct CommandErrorResponseEnvelope: Decodable {
+    let ok: Bool
+    let command: String
+    let payload: CommandErrorPayload
+}
+
+private struct CommandErrorPayload: Decodable {
+    let error: String
 }
