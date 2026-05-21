@@ -295,6 +295,15 @@ def _prepare_messages(messages: list[dict[str, str]], thinking_enabled: bool, su
     if prelude is None:
         return messages
 
+    if messages and messages[0].get("role") == "system":
+        return [
+            {
+                "role": "system",
+                "content": f"{prelude}\n\n{messages[0].get('content', '')}",
+            },
+            *messages[1:],
+        ]
+
     return [{"role": "system", "content": prelude}, *messages]
 
 
