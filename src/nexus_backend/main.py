@@ -72,6 +72,7 @@ def main() -> None:
             CommandRequest(command=args.nexus_command),
             model_root=config.model_root,
             downloads_root=config.downloads_root,
+            database_path=config.database_path,
             runtime_manager=runtime_manager,
         )
         print(json.dumps(response.to_dict(), ensure_ascii=True, indent=2))
@@ -96,6 +97,27 @@ def main() -> None:
         return
 
     if args.command == "chat":
+        if args.thread:
+            response = route_command(
+                CommandRequest(
+                    command="/agent",
+                    arguments={
+                        "thread_id": args.thread,
+                        "message": args.prompt,
+                        "model_name": args.model_name or "",
+                        "temperature": args.temperature,
+                        "thinking_enabled": args.thinking == "on",
+                        "max_tokens": args.max_tokens,
+                    },
+                ),
+                model_root=config.model_root,
+                downloads_root=config.downloads_root,
+                database_path=config.database_path,
+                runtime_manager=runtime_manager,
+            )
+            print(json.dumps(response.to_dict(), ensure_ascii=True, indent=2))
+            return
+
         result = runtime_manager.chat(
             model_name=args.model_name,
             messages=[{"role": "user", "content": args.prompt}],
@@ -104,6 +126,27 @@ def main() -> None:
             max_tokens=args.max_tokens,
         )
         print(json.dumps(result, ensure_ascii=True, indent=2))
+        return
+
+    if args.command == "agent":
+        response = route_command(
+            CommandRequest(
+                command="/agent",
+                arguments={
+                    "thread_id": args.thread or "",
+                    "message": args.message,
+                    "model_name": args.model_name or "",
+                    "temperature": args.temperature,
+                    "thinking_enabled": args.thinking == "on",
+                    "max_tokens": args.max_tokens,
+                },
+            ),
+            model_root=config.model_root,
+            downloads_root=config.downloads_root,
+            database_path=config.database_path,
+            runtime_manager=runtime_manager,
+        )
+        print(json.dumps(response.to_dict(), ensure_ascii=True, indent=2))
         return
 
     _print_bootstrap(config)
@@ -120,7 +163,10 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("models", help="Print discovered local model inventory")
 
     run_parser = subparsers.add_parser("run", help="Run a Nexus command through the task router")
-    run_parser.add_argument("nexus_command", choices=["/models", "/downloads", "/runtime/status"])
+    run_parser.add_argument(
+        "nexus_command",
+        choices=["/models", "/downloads", "/runtime/status", "/threads"],
+    )
 
     load_parser = subparsers.add_parser("runtime-load", help="Load a llama.cpp model into llama-server")
     load_parser.add_argument("model_name")
@@ -137,6 +183,15 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--temperature", type=float, default=0.2)
     chat_parser.add_argument("--thinking", choices=["on", "off"], default="on")
     chat_parser.add_argument("--max-tokens", type=int, default=512)
+    chat_parser.add_argument("--thread", help="Use the persistent Nexus agent thread path")
+
+    agent_parser = subparsers.add_parser("agent", help="Run a persistent Nexus agent turn with tools")
+    agent_parser.add_argument("message")
+    agent_parser.add_argument("--thread")
+    agent_parser.add_argument("--model-name")
+    agent_parser.add_argument("--temperature", type=float, default=0.2)
+    agent_parser.add_argument("--thinking", choices=["on", "off"], default="on")
+    agent_parser.add_argument("--max-tokens", type=int, default=900)
 
     return parser
 

@@ -4,8 +4,12 @@ from pathlib import Path
 
 from nexus_backend.api.schemas import CommandRequest
 from nexus_backend.api.schemas import CommandResponse
+from nexus_backend.memory.store import create_thread
+from nexus_backend.memory.store import get_messages
+from nexus_backend.memory.store import list_threads
 from nexus_backend.models import discover_model_registry
 from nexus_backend.models import LlamaCppRuntimeManager
+from nexus_backend.tasks.agent import AgentEngine
 from nexus_backend.tools.downloads import scan_downloads
 
 
@@ -13,6 +17,7 @@ def route_command(
     command_request: CommandRequest,
     model_root: Path,
     downloads_root: Path,
+    database_path: Path,
     runtime_manager: LlamaCppRuntimeManager | None = None,
 ) -> CommandResponse:
     command = command_request.command.strip()
@@ -100,12 +105,70 @@ def route_command(
             return _command_error(command, exc)
         return CommandResponse(ok=True, command=command, payload=result)
 
+    if command == "/threads":
+        return CommandResponse(
+            ok=True,
+            command=command,
+            payload={"threads": [thread.to_dict() for thread in list_threads(database_path)]},
+        )
+
+    if command == "/thread/create":
+        title = str(command_request.arguments.get("title", "Nexus thread")).strip() or "Nexus thread"
+        thread = create_thread(database_path, title=title)
+        return CommandResponse(ok=True, command=command, payload={"thread": thread.to_dict()})
+
+    if command == "/thread/messages":
+        thread_id = str(command_request.arguments.get("thread_id", "")).strip()
+        if not thread_id:
+            return CommandResponse(ok=False, command=command, payload={"error": "thread_id is required."})
+        return CommandResponse(
+            ok=True,
+            command=command,
+            payload={"messages": [message.to_dict() for message in get_messages(database_path, thread_id, limit=100)]},
+        )
+
+    if command == "/agent":
+        if runtime_manager is None:
+            return CommandResponse(ok=False, command=command, payload={"error": "Runtime manager is not configured."})
+        try:
+            user_message = str(command_request.arguments.get("message", "")).strip()
+            if not user_message:
+                return CommandResponse(ok=False, command=command, payload={"error": "message is required."})
+            agent = AgentEngine(
+                database_path=database_path,
+                model_root=model_root,
+                downloads_root=downloads_root,
+                runtime_manager=runtime_manager,
+            )
+            turn = agent.run_turn(
+                user_message=user_message,
+                thread_id=str(command_request.arguments.get("thread_id", "")).strip() or None,
+                model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
+                temperature=float(command_request.arguments.get("temperature", 0.2)),
+                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
+                max_tokens=int(command_request.arguments.get("max_tokens", 900)),
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            return _command_error(command, exc)
+        return CommandResponse(ok=True, command=command, payload=turn.to_dict())
+
     return CommandResponse(
         ok=False,
         command=command,
         payload={
             "error": f"Unknown command: {command}",
-            "supported_commands": ["/models", "/downloads", "/runtime/status", "/runtime/load", "/runtime/unload", "/chat"],
+            "supported_commands": [
+                "/models",
+                "/downloads",
+                "/runtime/status",
+                "/runtime/load",
+                "/runtime/unload",
+                "/chat",
+                "/agent",
+                "/threads",
+                "/thread/create",
+                "/thread/messages",
+            ],
         },
     )
 

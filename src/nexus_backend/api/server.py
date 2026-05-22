@@ -60,6 +60,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
                 CommandRequest(command="/models"),
                 model_root=self.server.model_root,
                 downloads_root=self.server.downloads_root,
+                database_path=self.server.database_path,
                 runtime_manager=self.server.runtime_manager,
             )
             self._write_json(HTTPStatus.OK, response.to_dict())
@@ -85,6 +86,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
             request,
             model_root=self.server.model_root,
             downloads_root=self.server.downloads_root,
+            database_path=self.server.database_path,
             runtime_manager=self.server.runtime_manager,
         )
         log_task_run(
