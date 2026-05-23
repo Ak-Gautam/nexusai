@@ -64,7 +64,7 @@ def route_command(
         try:
             context_length = command_request.arguments.get("context_length")
             temperature = float(command_request.arguments.get("temperature", 0.2))
-            thinking_enabled = _parse_bool(command_request.arguments.get("thinking_enabled", True))
+            thinking_enabled = _parse_bool(command_request.arguments.get("thinking_enabled", False))
             state = runtime_manager.load(
                 model_name=model_name,
                 context_length=int(context_length) if context_length is not None else None,
@@ -98,7 +98,7 @@ def route_command(
                 model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
                 messages=messages,
                 temperature=float(command_request.arguments.get("temperature", 0.2)),
-                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
+                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", False)),
                 max_tokens=int(command_request.arguments.get("max_tokens", 512)),
             )
         except (OSError, RuntimeError, ValueError) as exc:
@@ -145,7 +145,7 @@ def route_command(
                 thread_id=str(command_request.arguments.get("thread_id", "")).strip() or None,
                 model_name=str(command_request.arguments.get("model_name", "")).strip() or None,
                 temperature=float(command_request.arguments.get("temperature", 0.2)),
-                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", True)),
+                thinking_enabled=_parse_bool(command_request.arguments.get("thinking_enabled", False)),
                 max_tokens=int(command_request.arguments.get("max_tokens", 900)),
             )
         except (OSError, RuntimeError, ValueError) as exc:

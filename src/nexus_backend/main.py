@@ -172,7 +172,7 @@ def _build_parser() -> argparse.ArgumentParser:
     load_parser.add_argument("model_name")
     load_parser.add_argument("--context-length", type=int)
     load_parser.add_argument("--temperature", type=float, default=0.2)
-    load_parser.add_argument("--thinking", choices=["on", "off"], default="on")
+    load_parser.add_argument("--thinking", choices=["on", "off"], default="off")
 
     subparsers.add_parser("runtime-status", help="Show active llama.cpp runtime state")
     subparsers.add_parser("runtime-unload", help="Stop the active llama.cpp runtime")
@@ -181,7 +181,7 @@ def _build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("prompt")
     chat_parser.add_argument("--model-name")
     chat_parser.add_argument("--temperature", type=float, default=0.2)
-    chat_parser.add_argument("--thinking", choices=["on", "off"], default="on")
+    chat_parser.add_argument("--thinking", choices=["on", "off"], default="off")
     chat_parser.add_argument("--max-tokens", type=int, default=512)
     chat_parser.add_argument("--thread", help="Use the persistent Nexus agent thread path")
 
@@ -190,7 +190,7 @@ def _build_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("--thread")
     agent_parser.add_argument("--model-name")
     agent_parser.add_argument("--temperature", type=float, default=0.2)
-    agent_parser.add_argument("--thinking", choices=["on", "off"], default="on")
+    agent_parser.add_argument("--thinking", choices=["on", "off"], default="off")
     agent_parser.add_argument("--max-tokens", type=int, default=900)
 
     return parser

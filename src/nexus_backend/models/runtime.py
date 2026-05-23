@@ -192,6 +192,8 @@ class LlamaCppRuntimeManager:
                 "max_tokens": max_tokens,
                 "stream": False,
             }
+            if loaded.supports_thinking:
+                payload["chat_template_kwargs"] = {"enable_thinking": effective_thinking}
             raw_response = _post_json(f"{loaded.server_url}/v1/chat/completions", payload)
             return {
                 "runtime": loaded.to_dict(),
