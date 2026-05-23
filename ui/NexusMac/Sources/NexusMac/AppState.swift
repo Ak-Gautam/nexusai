@@ -129,7 +129,7 @@ final class AppState: ObservableObject {
             let status = try await backend.loadRuntime(
                 modelName: artifact.name,
                 contextLength: artifact.recommendedContextLength > 0 ? artifact.recommendedContextLength : nil,
-                thinkingEnabled: artifact.supportsThinking
+                thinkingEnabled: false
             )
             runtimeStatus = status
             responseBody = runtimeDetails(status)
