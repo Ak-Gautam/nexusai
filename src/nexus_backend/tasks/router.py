@@ -4,6 +4,8 @@ from pathlib import Path
 
 from nexus_backend.api.schemas import CommandRequest
 from nexus_backend.api.schemas import CommandResponse
+from nexus_backend.app_logging import list_log_files
+from nexus_backend.app_logging import read_recent_logs
 from nexus_backend.memory.store import create_thread
 from nexus_backend.memory.store import get_messages
 from nexus_backend.memory.store import list_threads
@@ -83,6 +85,21 @@ def route_command(
         except (OSError, RuntimeError, ValueError) as exc:
             return _command_error(command, exc)
         return CommandResponse(ok=True, command=command, payload=state.to_dict())
+
+    if command == "/logs":
+        source = str(command_request.arguments.get("source", "all"))
+        limit = _parse_int(command_request.arguments.get("limit", 200), default=200, minimum=1, maximum=1000)
+        data_root = database_path.parent
+        return CommandResponse(
+            ok=True,
+            command=command,
+            payload={
+                "log_files": list_log_files(data_root),
+                "source": source,
+                "limit": limit,
+                "logs": read_recent_logs(data_root, source=source, limit=limit),
+            },
+        )
 
     if command == "/chat":
         if runtime_manager is None:
@@ -164,6 +181,7 @@ def route_command(
                 "/runtime/load",
                 "/runtime/unload",
                 "/chat",
+                "/logs",
                 "/agent",
                 "/threads",
                 "/thread/create",
@@ -179,6 +197,14 @@ def _parse_bool(value: object) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _parse_int(value: object, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, min(maximum, parsed))
 
 
 def _parse_chat_messages(value: object) -> list[dict[str, str]] | None:
