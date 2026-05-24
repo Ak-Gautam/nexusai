@@ -1,3 +1,4 @@
+import NexusMacCore
 import SwiftUI
 
 @main

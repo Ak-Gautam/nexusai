@@ -10,9 +10,19 @@ let package = Package(
         .executable(name: "NexusMac", targets: ["NexusMac"]),
     ],
     targets: [
+        .target(
+            name: "NexusMacCore",
+            path: "Sources/NexusMacCore"
+        ),
         .executableTarget(
             name: "NexusMac",
-            path: "Sources"
+            dependencies: ["NexusMacCore"],
+            path: "Sources/NexusMac"
+        ),
+        .executableTarget(
+            name: "NexusMacUnitTests",
+            dependencies: ["NexusMacCore"],
+            path: "Tests"
         ),
     ]
 )
