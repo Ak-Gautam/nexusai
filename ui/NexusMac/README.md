@@ -35,7 +35,15 @@ Current implementation status:
 - the app can fetch the typed model catalog and runtime status
 - the app can load and unload llama.cpp text models
 - chat displays a compact local transcript and sends bounded conversation context
-- quick actions for `/models`, `/downloads`, `/runtime/status`, `/runtime/unload`, and `/chat/new` are present in the view
+- quick actions for `/models`, `/downloads`, `/runtime/status`, `/runtime/unload`, `/logs`, `/frontend/logs`, and `/chat/new` are present in the view
+
+Logs:
+
+- backend: `data/logs/backend.log`
+- model runtime: `data/logs/llama-server.stdout.log` and `data/logs/llama-server.stderr.log`
+- frontend: `~/Library/Logs/Nexus/frontend.log`
+- backend logs can be inspected through `/logs`, `/logs source=backend`, or `/logs source=runtime`
+- frontend logs can be inspected through `/frontend/logs`
 
 Run locally:
 
@@ -47,10 +55,16 @@ bash scripts/run_backend.sh
 bash scripts/run_mac_ui.sh
 ```
 
-Smoke-check the backend without opening the UI:
+Check the backend without opening the UI:
 
 ```bash
-python3 scripts/smoke_backend.py
+python3 scripts/check_backend.py
+```
+
+Run the full unit suite:
+
+```bash
+bash scripts/test_all.sh
 ```
 
 Current limitations:

@@ -43,7 +43,7 @@ def main() -> None:
         models = _post_command(base_url, "/models")
         runtime = _post_command(base_url, "/runtime/status")
 
-        print("Backend smoke check passed")
+        print("Backend check passed")
         print(f"health.ok={health.get('ok')}")
         print(f"models.count={len(models.get('payload', {}).get('artifacts', []))}")
         print(f"runtime.loaded={runtime.get('payload', {}).get('loaded')}")
