@@ -13,8 +13,12 @@ from pathlib import Path
 from urllib import error
 from urllib import request
 
+from nexus_backend.app_logging import get_logger
 from nexus_backend.models.registry import ModelArtifact
 from nexus_backend.models.registry import discover_model_registry
+
+
+logger = get_logger("runtime")
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,7 @@ class LlamaCppRuntimeManager:
             current = self.status()
             if current.loaded and current.model_name == artifact.name:
                 if current.context_length == settings.context_length and current.temperature == settings.temperature and current.thinking_enabled == settings.thinking_enabled:
+                    logger.info("runtime_load_reused model=%s context=%s thinking=%s", artifact.name, settings.context_length, settings.thinking_enabled)
                     return current
                 self._terminate_locked()
 
@@ -145,6 +150,7 @@ class LlamaCppRuntimeManager:
                 "--jinja",
             ]
 
+            logger.info("runtime_load_started model=%s context=%s port=%s thinking=%s", artifact.name, settings.context_length, port, settings.thinking_enabled)
             self._process = subprocess.Popen(
                 command,
                 stdout=self._stdout_handle,
@@ -158,11 +164,14 @@ class LlamaCppRuntimeManager:
             self._wait_until_healthy_locked()
             state = self.status()
             self._write_persisted_state(state)
+            logger.info("runtime_load_completed model=%s pid=%s server_url=%s", state.model_name, state.process_id, state.server_url)
             return state
 
     def unload(self) -> RuntimeState:
         with self._lock:
+            logger.info("runtime_unload_started")
             self._terminate_locked()
+            logger.info("runtime_unload_completed")
             return self.status()
 
     def chat(self, model_name: str | None, messages: list[dict[str, str]], temperature: float | None, thinking_enabled: bool | None, max_tokens: int = 512) -> dict[str, object]:
@@ -194,7 +203,20 @@ class LlamaCppRuntimeManager:
             }
             if loaded.supports_thinking:
                 payload["chat_template_kwargs"] = {"enable_thinking": effective_thinking}
+            logger.info(
+                "chat_started model=%s message_count=%s max_tokens=%s thinking=%s",
+                loaded.model_name,
+                len(messages),
+                max_tokens,
+                effective_thinking,
+            )
             raw_response = _post_json(f"{loaded.server_url}/v1/chat/completions", payload)
+            logger.info(
+                "chat_completed model=%s finish_reason=%s content_length=%s",
+                loaded.model_name,
+                _first_finish_reason(raw_response),
+                len(_first_message_content(raw_response)),
+            )
             return {
                 "runtime": loaded.to_dict(),
                 "request": payload,
@@ -328,6 +350,33 @@ def _post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
         raise RuntimeError(f"llama-server request failed: {details}") from exc
     except (error.URLError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"Request failed for {url}") from exc
+
+
+def _first_finish_reason(response: dict[str, object]) -> str:
+    choice = _first_choice(response)
+    if choice is None:
+        return ""
+    value = choice.get("finish_reason")
+    return value if isinstance(value, str) else ""
+
+
+def _first_message_content(response: dict[str, object]) -> str:
+    choice = _first_choice(response)
+    if choice is None:
+        return ""
+    message = choice.get("message")
+    if not isinstance(message, dict):
+        return ""
+    value = message.get("content")
+    return value if isinstance(value, str) else ""
+
+
+def _first_choice(response: dict[str, object]) -> dict[str, object] | None:
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    first = choices[0]
+    return first if isinstance(first, dict) else None
 
 
 def _pid_is_alive(pid: int) -> bool:

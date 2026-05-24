@@ -5,6 +5,8 @@ import json
 
 from nexus_backend.api.schemas import CommandRequest
 from nexus_backend.api.server import NexusApiServer
+from nexus_backend.app_logging import configure_backend_logging
+from nexus_backend.app_logging import get_logger
 from nexus_backend.config import load_config
 from nexus_backend.config import NexusConfig
 from nexus_backend.memory.store import initialize_database
@@ -17,6 +19,8 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
     config = load_config()
+    configure_backend_logging(config.data_root)
+    logger = get_logger("main")
     initialize_database(config.database_path)
     runtime_manager = LlamaCppRuntimeManager(
         model_root=config.model_root,
@@ -25,6 +29,7 @@ def main() -> None:
     )
 
     if args.command == "serve":
+        logger.info("starting_api_server host=%s port=%s", args.host, args.port)
         server = NexusApiServer(
             (args.host, args.port),
             model_root=config.model_root,
@@ -165,7 +170,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run a Nexus command through the task router")
     run_parser.add_argument(
         "nexus_command",
-        choices=["/models", "/downloads", "/runtime/status", "/threads"],
+        choices=["/models", "/downloads", "/runtime/status", "/threads", "/logs"],
     )
 
     load_parser = subparsers.add_parser("runtime-load", help="Load a llama.cpp model into llama-server")

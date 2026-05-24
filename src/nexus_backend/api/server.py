@@ -9,6 +9,8 @@ from typing import Any
 
 from nexus_backend.api.schemas import CommandRequest
 from nexus_backend.api.schemas import HealthResponse
+from nexus_backend.app_logging import configure_backend_logging
+from nexus_backend.app_logging import get_logger
 from nexus_backend.memory.store import initialize_database
 from nexus_backend.memory.store import log_event
 from nexus_backend.memory.store import log_task_run
@@ -31,12 +33,16 @@ class NexusApiServer(ThreadingHTTPServer):
         self.model_root = model_root
         self.database_path = database_path
         self.downloads_root = downloads_root
+        self.data_root = data_root
+        self.log_path = configure_backend_logging(data_root)
+        self.logger = get_logger("api")
         self.database_status = initialize_database(database_path)
         self.runtime_manager = LlamaCppRuntimeManager(
             model_root=model_root,
             data_root=data_root,
             llama_server_path=llama_server_path,
         )
+        self.logger.info("api_server_initialized address=%s:%s log_path=%s", server_address[0], server_address[1], self.log_path)
 
 
 class NexusRequestHandler(BaseHTTPRequestHandler):
@@ -44,6 +50,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
+            self.server.logger.info("http_get path=/health")
             registry = discover_model_registry(self.server.model_root)
             payload = HealthResponse(
                 ok=True,
@@ -56,6 +63,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/models":
+            self.server.logger.info("http_get path=/models")
             response = route_command(
                 CommandRequest(command="/models"),
                 model_root=self.server.model_root,
@@ -67,6 +75,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/runtime":
+            self.server.logger.info("http_get path=/runtime")
             payload = self.server.runtime_manager.status().to_dict()
             self._write_json(HTTPStatus.OK, payload)
             return
@@ -81,6 +90,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
         body = self._read_json()
         command = str(body.get("command", "")).strip()
         arguments = body.get("arguments", {})
+        self.server.logger.info("command_started command=%s", command or "<empty>")
         request = CommandRequest(command=command, arguments=arguments if isinstance(arguments, dict) else {})
         response = route_command(
             request,
@@ -95,6 +105,7 @@ class NexusRequestHandler(BaseHTTPRequestHandler):
             status="ok" if response.ok else "error",
             summary=json.dumps(response.payload, ensure_ascii=True)[:500],
         )
+        self.server.logger.info("command_completed command=%s ok=%s", command or "<empty>", response.ok)
         self._write_json(HTTPStatus.OK if response.ok else HTTPStatus.BAD_REQUEST, response.to_dict())
 
     def log_message(self, format: str, *args: Any) -> None:
